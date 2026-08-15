@@ -290,9 +290,16 @@ tbody tr {
 .actions {
   margin-top: 26px;
   display: flex;
+  flex:1;
   flex-direction: column;
   align-items: center;
   gap: 10px;
+}
+
+
+.actions_item{
+  display: flex;
+  /* text-align: center; */
 }
 
 .extract-btn {

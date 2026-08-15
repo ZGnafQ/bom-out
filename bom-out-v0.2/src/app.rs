@@ -189,6 +189,22 @@ async fn run_extract(
     }
 }
 
+async fn start_bridge_server(mut status: Signal<String>) {
+    status.set("正在启动 bridge-server...".into());
+    let val = invoke("start_bridge_server", JsValue::UNDEFINED).await;
+    match serde_wasm_bindgen::from_value::<CmdResult<String>>(val) {
+        Ok(res) if res.ok => {
+            status.set(res.data.unwrap_or_else(|| "bridge-server 已启动".into()));
+        }
+        Ok(res) => {
+            status.set(res.error.unwrap_or_else(|| "启动失败".into()));
+        }
+        Err(_) => {
+            status.set("启动失败".into());
+        }
+    }
+}
+
 fn setup_file_drop(
     mut pin_path: Signal<String>,
     mut bom_path: Signal<String>,
@@ -258,7 +274,9 @@ fn render_output_rows(rows: &[Vec<String>]) -> Element {
     rsx! {
         for row in rows {
             tr {
-                for c in row { td { "{c}" } }
+                for c in row {
+                    td { "{c}" }
+                }
             }
         }
     }
@@ -266,7 +284,7 @@ fn render_output_rows(rows: &[Vec<String>]) -> Element {
 
 fn render_tabs(models: &[ModelResult], active: usize, mut active_model: Signal<usize>) -> Element {
     rsx! {
-        for (i, m) in models.iter().enumerate() {
+        for (i , m) in models.iter().enumerate() {
             button {
                 class: if i == active { "tab tab-active" } else { "tab" },
                 onclick: move |_| active_model.set(i),
@@ -318,9 +336,9 @@ pub fn App() -> Element {
                 div {
                     class: format!("upload-zone{}", if hover == Some(0) { " dragover" } else { "" }),
                     onclick: move |_| {
-                        wasm_bindgen_futures::spawn_local(pick_file(
-                            0, pin_path, bom_path, pin_preview, bom_preview, extract, status,
-                        ));
+                        wasm_bindgen_futures::spawn_local(
+                            pick_file(0, pin_path, bom_path, pin_preview, bom_preview, extract, status),
+                        );
                     },
                     ondragenter: move |_| hover_zone.set(Some(0)),
                     ondragover: move |ev| ev.prevent_default(),
@@ -334,8 +352,18 @@ pub fn App() -> Element {
                         stroke_width: "1.5",
                         path { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" }
                         polyline { points: "14 2 14 8 20 8" }
-                        line { x1: "8", y1: "13", x2: "16", y2: "13" }
-                        line { x1: "8", y1: "17", x2: "16", y2: "17" }
+                        line {
+                            x1: "8",
+                            y1: "13",
+                            x2: "16",
+                            y2: "13",
+                        }
+                        line {
+                            x1: "8",
+                            y1: "17",
+                            x2: "16",
+                            y2: "17",
+                        }
                     }
                     div { class: "zone-title", "引脚定义" }
                     div { class: "zone-desc", "请拖入或选择引脚定义文件" }
@@ -343,9 +371,9 @@ pub fn App() -> Element {
                         class: "file-btn",
                         onclick: move |ev| {
                             ev.stop_propagation();
-                            wasm_bindgen_futures::spawn_local(pick_file(
-                                0, pin_path, bom_path, pin_preview, bom_preview, extract, status,
-                            ));
+                            wasm_bindgen_futures::spawn_local(
+                                pick_file(0, pin_path, bom_path, pin_preview, bom_preview, extract, status),
+                            );
                         },
                         "选择文件"
                     }
@@ -353,9 +381,9 @@ pub fn App() -> Element {
                 div {
                     class: format!("upload-zone{}", if hover == Some(1) { " dragover" } else { "" }),
                     onclick: move |_| {
-                        wasm_bindgen_futures::spawn_local(pick_file(
-                            1, pin_path, bom_path, pin_preview, bom_preview, extract, status,
-                        ));
+                        wasm_bindgen_futures::spawn_local(
+                            pick_file(1, pin_path, bom_path, pin_preview, bom_preview, extract, status),
+                        );
                     },
                     ondragenter: move |_| hover_zone.set(Some(1)),
                     ondragover: move |ev| ev.prevent_default(),
@@ -369,8 +397,18 @@ pub fn App() -> Element {
                         stroke_width: "1.5",
                         path { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" }
                         polyline { points: "14 2 14 8 20 8" }
-                        line { x1: "8", y1: "13", x2: "16", y2: "13" }
-                        line { x1: "8", y1: "17", x2: "16", y2: "17" }
+                        line {
+                            x1: "8",
+                            y1: "13",
+                            x2: "16",
+                            y2: "13",
+                        }
+                        line {
+                            x1: "8",
+                            y1: "17",
+                            x2: "16",
+                            y2: "17",
+                        }
                     }
                     div { class: "zone-title", "完整BOM" }
                     div { class: "zone-desc", "请拖入或选择完整BOM文件" }
@@ -378,9 +416,9 @@ pub fn App() -> Element {
                         class: "file-btn",
                         onclick: move |ev| {
                             ev.stop_propagation();
-                            wasm_bindgen_futures::spawn_local(pick_file(
-                                1, pin_path, bom_path, pin_preview, bom_preview, extract, status,
-                            ));
+                            wasm_bindgen_futures::spawn_local(
+                                pick_file(1, pin_path, bom_path, pin_preview, bom_preview, extract, status),
+                            );
                         },
                         "选择文件"
                     }
@@ -406,11 +444,13 @@ pub fn App() -> Element {
                         div { class: "table-wrap",
                             table {
                                 thead {
-                                    tr { for h in &pin.headers { th { "{h}" } } }
+                                    tr {
+                                        for h in &pin.headers {
+                                            th { "{h}" }
+                                        }
+                                    }
                                 }
-                                tbody {
-                                    {render_output_rows(&pin.rows)}
-                                }
+                                tbody { {render_output_rows(&pin.rows)} }
                             }
                         }
                     } else {
@@ -423,11 +463,13 @@ pub fn App() -> Element {
                         div { class: "table-wrap",
                             table {
                                 thead {
-                                    tr { for h in &bom.headers { th { "{h}" } } }
+                                    tr {
+                                        for h in &bom.headers {
+                                            th { "{h}" }
+                                        }
+                                    }
                                 }
-                                tbody {
-                                    {render_output_rows(&bom.rows)}
-                                }
+                                tbody { {render_output_rows(&bom.rows)} }
                             }
                         }
                     } else {
@@ -435,20 +477,34 @@ pub fn App() -> Element {
                     }
                 }
             }
-
-            div { class: "actions",
-                button {
-                    class: "extract-btn",
-                    disabled: busy_val,
-                    onclick: move |_| {
-                        wasm_bindgen_futures::spawn_local(run_extract(
-                            pin_path, bom_path, extract, active_model, busy, status,
-                        ));
-                    },
-                    "开始输出选贴BOM"
+            div { class: "actions_item",
+                div { class: "actions",
+                    button {
+                        class: "extract-btn",
+                        disabled: busy_val,
+                        onclick: move |_| {
+                            wasm_bindgen_futures::spawn_local(start_bridge_server(status));
+                        },
+                        "开始启动bridge-server"
+                    }
+                    if !status_val.is_empty() {
+                        div { class: "status", "{status_val}" }
+                    }
                 }
-                if !status_val.is_empty() {
-                    div { class: "status", "{status_val}" }
+                div { class: "actions",
+                    button {
+                        class: "extract-btn",
+                        disabled: busy_val,
+                        onclick: move |_| {
+                            wasm_bindgen_futures::spawn_local(
+                                run_extract(pin_path, bom_path, extract, active_model, busy, status),
+                            );
+                        },
+                        "开始输出选贴BOM"
+                    }
+                    if !status_val.is_empty() {
+                        div { class: "status", "{status_val}" }
+                    }
                 }
             }
 
@@ -456,35 +512,39 @@ pub fn App() -> Element {
             div { class: "output-panel",
                 if let Some(er) = &extract_val {
                     if !er.models.is_empty() {
-                        div { class: "tabs",
-                            {render_tabs(&er.models, active, active_model)}
-                        }
+                        div { class: "tabs", {render_tabs(&er.models, active, active_model)} }
                         if let Some(m) = er.models.get(active) {
                             div { class: "output-table-title", "选贴BOM" }
                             div { class: "table-wrap output-table-wrap",
                                 table {
                                     thead {
-                                        tr { for h in &m.kept_rows[0] { th { "{h}" } } }
+                                        tr {
+                                            for h in &m.kept_rows[0] {
+                                                th { "{h}" }
+                                            }
+                                        }
                                     }
-                                    tbody {
-                                        {render_output_rows(&m.kept_rows[1..])}
-                                    }
+                                    tbody { {render_output_rows(&m.kept_rows[1..])} }
                                 }
                             }
                             div { class: "output-table-title", "选贴差异BOM" }
                             div { class: "table-wrap output-table-wrap",
                                 table {
                                     thead {
-                                        tr { for h in &m.diff_rows[0] { th { "{h}" } } }
+                                        tr {
+                                            for h in &m.diff_rows[0] {
+                                                th { "{h}" }
+                                            }
+                                        }
                                     }
-                                    tbody {
-                                        {render_output_rows(&m.diff_rows[1..])}
-                                    }
+                                    tbody { {render_output_rows(&m.diff_rows[1..])} }
                                 }
                             }
                         }
                     } else {
-                        div { class: "preview-empty", "请先点击「开始输出选贴BOM」生成结果" }
+                        div { class: "preview-empty",
+                            "请先点击「开始输出选贴BOM」生成结果"
+                        }
                     }
                 } else {
                     div { class: "preview-empty", "请先点击「开始输出选贴BOM」生成结果" }
