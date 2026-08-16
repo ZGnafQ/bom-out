@@ -205,6 +205,22 @@ async fn start_bridge_server(mut status: Signal<String>) {
     }
 }
 
+async fn run_main_js(mut status: Signal<String>) {
+    status.set("正在运行 run_main.js...".into());
+    let val = invoke("run_main_js", JsValue::UNDEFINED).await;
+    match serde_wasm_bindgen::from_value::<CmdResult<String>>(val) {
+        Ok(res) if res.ok => {
+            status.set(res.data.unwrap_or_else(|| "run_main.js 已启动".into()));
+        }
+        Ok(res) => {
+            status.set(res.error.unwrap_or_else(|| "运行失败".into()));
+        }
+        Err(_) => {
+            status.set("运行失败".into());
+        }
+    }
+}
+
 fn setup_file_drop(
     mut pin_path: Signal<String>,
     mut bom_path: Signal<String>,
@@ -304,6 +320,8 @@ pub fn App() -> Element {
     let mut hover_zone = use_signal(|| Option::<u8>::None);
     let busy = use_signal(|| false);
     let status = use_signal(|| String::new());
+    let status_bridge_server = use_signal(|| String::new());
+    let status_module_extract = use_signal(|| String::new());
 
     use_effect(move || {
         setup_file_drop(
@@ -326,6 +344,9 @@ pub fn App() -> Element {
     let hover = hover_zone.read().clone();
     let busy_val = busy.read().clone();
     let status_val = status.read().clone();
+    let status_bridge_sever_val = status_bridge_server.read().clone();
+    let status_module_extract_val = status_module_extract.read().clone();
+    
 
     rsx! {
         link { rel: "stylesheet", href: CSS }
@@ -483,12 +504,25 @@ pub fn App() -> Element {
                         class: "extract-btn",
                         disabled: busy_val,
                         onclick: move |_| {
-                            wasm_bindgen_futures::spawn_local(start_bridge_server(status));
+                            wasm_bindgen_futures::spawn_local(start_bridge_server(status_bridge_server));
                         },
-                        "开始启动bridge-server"
+                        "启动bridge-server"
                     }
-                    if !status_val.is_empty() {
-                        div { class: "status", "{status_val}" }
+                    if !status_bridge_sever_val.is_empty() {
+                        div { class: "status", "{status_bridge_sever_val}" }
+                    }
+                }
+                div { class: "actions",
+                    button {
+                        class: "extract-btn",
+                        disabled: busy_val,
+                        onclick: move |_| {
+                            wasm_bindgen_futures::spawn_local(run_main_js(status_module_extract));
+                        },
+                        "开始提取模块位号"
+                    }
+                    if !status_module_extract_val.is_empty() {
+                        div { class: "status", "{status_module_extract_val}" }
                     }
                 }
                 div { class: "actions",
