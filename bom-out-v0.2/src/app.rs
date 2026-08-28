@@ -221,6 +221,50 @@ async fn run_main_js(mut status: Signal<String>) {
     }
 }
 
+/// 从 Tauri 拖放事件中取出文件路径列表。
+/// 事件参数为 `{ event, id, payload }`，payload 形如 `{ paths: [...], position: {...} }`。
+fn paths_from_drop_event(event: &JsValue) -> Vec<String> {
+    if event.is_undefined() || event.is_null() {
+        return Vec::new();
+    }
+    let obj = match event.dyn_ref::<js_sys::Object>() {
+        Some(o) => o,
+        None => return Vec::new(),
+    };
+    let payload = match Reflect::get(obj, &JsValue::from_str("payload")) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    if payload.is_undefined() || payload.is_null() {
+        return Vec::new();
+    }
+    let paths = match Reflect::get(&payload, &JsValue::from_str("paths")) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    if paths.is_undefined() || paths.is_null() {
+        return Vec::new();
+    }
+    Array::from(&paths)
+        .iter()
+        .filter_map(|v| v.as_string())
+        .collect()
+}
+
+/// 依据文件名推断该拖入文件应进入哪个虚线框（0=引脚定义，1=完整BOM）。
+fn infer_zone(files: &[String], pin_path: &Signal<String>) -> u8 {
+    let name = files[0].to_lowercase();
+    if name.contains("引脚") || name.contains("定义") {
+        0
+    } else if name.contains("bom"){
+        1
+    } else if pin_path.read().is_empty() {
+        0
+    } else {
+        1
+    }
+}
+
 fn setup_file_drop(
     mut pin_path: Signal<String>,
     mut bom_path: Signal<String>,
@@ -230,15 +274,21 @@ fn setup_file_drop(
     mut extract: Signal<Option<ExtractResult>>,
     status: Signal<String>,
 ) {
-    let on_drop = Closure::wrap(Box::new(move |event: JsValue| {
-        let obj = event.unchecked_into::<js_sys::Object>();
-        let payload = Reflect::get(&obj, &JsValue::from_str("payload")).unwrap_or(JsValue::UNDEFINED);
-        let arr = Array::from(&payload);
-        let paths: Vec<String> = arr.iter().filter_map(|v| v.as_string()).collect();
-        if paths.is_empty() {
-            return;
+    // 拖入窗口：根据文件名高亮对应的虚线框
+    let on_enter = Closure::wrap(Box::new(move |event: JsValue| {
+        let files: Vec<String> = paths_from_drop_event(&event)
+            .into_iter()
+            .filter(|p| p.to_lowercase().ends_with(".xlsx"))
+            .collect();
+        if !files.is_empty() {
+            hover_zone.set(Some(infer_zone(&files, &pin_path)));
         }
-        let mut files: Vec<String> = paths
+    }) as Box<dyn FnMut(JsValue)>);
+    let f_enter: js_sys::Function = on_enter.as_ref().clone().into();
+
+    // 松手：加载文件到对应虚线框
+    let on_drop = Closure::wrap(Box::new(move |event: JsValue| {
+        let mut files: Vec<String> = paths_from_drop_event(&event)
             .into_iter()
             .filter(|p| p.to_lowercase().ends_with(".xlsx"))
             .collect();
@@ -247,19 +297,9 @@ fn setup_file_drop(
         }
         let zone = {
             let hovered = *hover_zone.read();
-            hovered.unwrap_or_else(|| {
-                let name = files[0].to_lowercase();
-                if name.contains("引脚") || name.contains("定义") {
-                    0
-                } else if name.contains("bom") || name.contains("完整") {
-                    1
-                } else if pin_path.read().is_empty() {
-                    0
-                } else {
-                    1
-                }
-            })
+            hovered.unwrap_or_else(|| infer_zone(&files, &pin_path))
         };
+        hover_zone.set(None);
         let file = files.remove(0);
         extract.set(None);
         if zone == 0 {
@@ -270,20 +310,23 @@ fn setup_file_drop(
             wasm_bindgen_futures::spawn_local(load_preview(file, bom_preview, status));
         }
     }) as Box<dyn FnMut(JsValue)>);
-    let f: js_sys::Function = on_drop.as_ref().clone().into();
-    wasm_bindgen_futures::spawn_local(async move {
-        let _ = listen("tauri://file-drop", f).await;
-    });
-    on_drop.forget();
+    let f_drop: js_sys::Function = on_drop.as_ref().clone().into();
 
-    let on_cancel = Closure::wrap(Box::new(move |_: JsValue| {
+    // 拖离窗口 / 松开取消：取消悬停高亮
+    let on_leave = Closure::wrap(Box::new(move |_: JsValue| {
         hover_zone.set(None);
     }) as Box<dyn FnMut(JsValue)>);
-    let f2: js_sys::Function = on_cancel.as_ref().clone().into();
+    let f_leave: js_sys::Function = on_leave.as_ref().clone().into();
+
     wasm_bindgen_futures::spawn_local(async move {
-        let _ = listen("tauri://file-drop-cancelled", f2).await;
+        let _ = listen("tauri://drag-enter", f_enter).await;
+        let _ = listen("tauri://drag-drop", f_drop).await;
+        let _ = listen("tauri://drag-leave", f_leave).await;
     });
-    on_cancel.forget();
+
+    on_enter.forget();
+    on_drop.forget();
+    on_leave.forget();
 }
 
 fn render_output_rows(rows: &[Vec<String>]) -> Element {
