@@ -135,7 +135,7 @@ fn run_node_script(script: &str) -> CmdResult<String> {
     CmdResult::ok(format!("{script} 已启动"))
 }
 
-/// 真正等待脚本执行完毕（最多 120 秒）再反馈最终结果（适用于一次性任务，如 run_main.js）。
+/// 真正等待脚本执行完毕（最多 30 秒）再反馈最终结果（适用于一次性任务，如 run_main.js）。
 fn run_node_script_wait(script: &str) -> CmdResult<String> {
     let mut child = match spawn_node_script(script, true) {
         Ok(c) => c,
