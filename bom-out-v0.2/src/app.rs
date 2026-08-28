@@ -251,18 +251,41 @@ fn paths_from_drop_event(event: &JsValue) -> Vec<String> {
         .collect()
 }
 
-/// 依据文件名推断该拖入文件应进入哪个虚线框（0=引脚定义，1=完整BOM）。
-fn infer_zone(files: &[String], pin_path: &Signal<String>) -> u8 {
-    let name = files[0].to_lowercase();
-    if name.contains("引脚") || name.contains("定义") {
-        0
-    } else if name.contains("bom"){
-        1
-    } else if pin_path.read().is_empty() {
-        0
-    } else {
-        1
+/// 从 Tauri 拖放事件 payload 中取出光标位置（物理像素，(x, y)）。
+fn drop_position(event: &JsValue) -> Option<(f64, f64)> {
+    if event.is_undefined() || event.is_null() {
+        return None;
     }
+    let obj = event.dyn_ref::<js_sys::Object>()?;
+    let payload = Reflect::get(obj, &JsValue::from_str("payload")).ok()?;
+    if payload.is_undefined() || payload.is_null() {
+        return None;
+    }
+    let pos = Reflect::get(&payload, &JsValue::from_str("position")).ok()?;
+    if pos.is_undefined() || pos.is_null() {
+        return None;
+    }
+    let x = Reflect::get(&pos, &JsValue::from_str("x")).ok()?.as_f64()?;
+    let y = Reflect::get(&pos, &JsValue::from_str("y")).ok()?.as_f64()?;
+    Some((x, y))
+}
+
+/// 根据光标位置判断当前悬停在哪个虚线框上（0=引脚定义，1=完整BOM）。
+fn zone_at_position(x: f64, y: f64) -> Option<u8> {
+    let window = web_sys::window()?;
+    let document = window.document()?;
+    let dpr = window.device_pixel_ratio().max(1.0);
+    let css_x = x / dpr;
+    let css_y = y / dpr;
+    for (id, zone) in [("pin-zone", 0u8), ("bom-zone", 1u8)] {
+        if let Some(el) = document.get_element_by_id(id) {
+            let r = el.get_bounding_client_rect();
+            if css_x >= r.left() && css_x <= r.right() && css_y >= r.top() && css_y <= r.bottom() {
+                return Some(zone);
+            }
+        }
+    }
+    None
 }
 
 fn setup_file_drop(
@@ -274,19 +297,14 @@ fn setup_file_drop(
     mut extract: Signal<Option<ExtractResult>>,
     status: Signal<String>,
 ) {
-    // 拖入窗口：根据文件名高亮对应的虚线框
-    let on_enter = Closure::wrap(Box::new(move |event: JsValue| {
-        let files: Vec<String> = paths_from_drop_event(&event)
-            .into_iter()
-            .filter(|p| p.to_lowercase().ends_with(".xlsx"))
-            .collect();
-        if !files.is_empty() {
-            hover_zone.set(Some(infer_zone(&files, &pin_path)));
-        }
+    // 移动鼠标过程中（含刚拖入时）：按光标位置高亮对应的虚线框
+    let on_hover = Closure::wrap(Box::new(move |event: JsValue| {
+        let pos = drop_position(&event);
+        hover_zone.set(pos.and_then(|(x, y)| zone_at_position(x, y)));
     }) as Box<dyn FnMut(JsValue)>);
-    let f_enter: js_sys::Function = on_enter.as_ref().clone().into();
+    let f_hover: js_sys::Function = on_hover.as_ref().clone().into();
 
-    // 松手：加载文件到对应虚线框
+    // 松手：加载文件到光标所在（悬停/拖入）的虚线框
     let on_drop = Closure::wrap(Box::new(move |event: JsValue| {
         let mut files: Vec<String> = paths_from_drop_event(&event)
             .into_iter()
@@ -295,9 +313,19 @@ fn setup_file_drop(
         if files.is_empty() {
             return;
         }
+        // 目标框以最后悬停位置为准；若未悬停到任何框（松开在空白处），
+        // 则退回填入仍为空的框，两个都有文件则忽略本次拖入。
         let zone = {
             let hovered = *hover_zone.read();
-            hovered.unwrap_or_else(|| infer_zone(&files, &pin_path))
+            if let Some(z) = hovered {
+                z
+            } else if pin_path.read().is_empty() {
+                0
+            } else if bom_path.read().is_empty() {
+                1
+            } else {
+                return;
+            }
         };
         hover_zone.set(None);
         let file = files.remove(0);
@@ -319,12 +347,13 @@ fn setup_file_drop(
     let f_leave: js_sys::Function = on_leave.as_ref().clone().into();
 
     wasm_bindgen_futures::spawn_local(async move {
-        let _ = listen("tauri://drag-enter", f_enter).await;
+        let _ = listen("tauri://drag-enter", f_hover.clone()).await;
+        let _ = listen("tauri://drag-over", f_hover).await;
         let _ = listen("tauri://drag-drop", f_drop).await;
         let _ = listen("tauri://drag-leave", f_leave).await;
     });
 
-    on_enter.forget();
+    on_hover.forget();
     on_drop.forget();
     on_leave.forget();
 }
@@ -398,6 +427,7 @@ pub fn App() -> Element {
 
             div { class: "upload-row",
                 div {
+                    id: "pin-zone",
                     class: format!("upload-zone{}", if hover == Some(0) { " dragover" } else { "" }),
                     onclick: move |_| {
                         wasm_bindgen_futures::spawn_local(
@@ -443,6 +473,7 @@ pub fn App() -> Element {
                     }
                 }
                 div {
+                    id: "bom-zone",
                     class: format!("upload-zone{}", if hover == Some(1) { " dragover" } else { "" }),
                     onclick: move |_| {
                         wasm_bindgen_futures::spawn_local(
