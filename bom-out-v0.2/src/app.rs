@@ -227,8 +227,8 @@ async fn run_main_js(mut status: Signal<String>) {
 /// 事件参数为 `{ event, id, payload }`，payload 形如 `{ paths: [...], position: {...} }`。
 fn paths_from_drop_event(event: &JsValue) -> Vec<String> {
     // 1. 打印原始 event
-    console::log_1(&JsValue::from_str("=== 原始 Event ==="));
-    console::log_1(event);
+    // console::log_1(&JsValue::from_str("=== 原始 Event ==="));
+    // console::log_1(event);
     if event.is_undefined() || event.is_null() {
         return Vec::new();
     }
@@ -237,14 +237,14 @@ fn paths_from_drop_event(event: &JsValue) -> Vec<String> {
         None => return Vec::new(),
     };
     // 2. 打印 obj (其实就是 event 本身)
-    console::log_1(&JsValue::from_str("=== Obj (event) ==="));
-    console::log_1(&obj);
+    // console::log_1(&JsValue::from_str("=== Obj (event) ==="));
+    // console::log_1(&obj);
     let payload = match Reflect::get(obj, &JsValue::from_str("payload")) {
         Ok(v) => v,
         Err(_) => return Vec::new(),
     };
-    console::log_1(&JsValue::from_str("=== Payload ==="));
-    console::log_1(&payload);
+    // console::log_1(&JsValue::from_str("=== Payload ==="));
+    // console::log_1(&payload);
     if payload.is_undefined() || payload.is_null() {
         return Vec::new();
     }
@@ -252,8 +252,8 @@ fn paths_from_drop_event(event: &JsValue) -> Vec<String> {
         Ok(v) => v,
         Err(_) => return Vec::new(),
     };
-    console::log_1(&JsValue::from_str("=== Paths (原始) ==="));
-    console::log_1(&paths);
+    // console::log_1(&JsValue::from_str("=== Paths (原始) ==="));
+    // console::log_1(&paths);
     if paths.is_undefined() || paths.is_null() {
         return Vec::new();
     }
@@ -261,8 +261,8 @@ fn paths_from_drop_event(event: &JsValue) -> Vec<String> {
         .iter()
         .filter_map(|v| v.as_string())
         .collect();
-    console::log_1(&JsValue::from_str("=== 最终结果 Vec<String> ==="));
-    console::log_1(&JsValue::from_str(&format!("{:?}", result)));
+    // console::log_1(&JsValue::from_str("=== 最终结果 Vec<String> ==="));
+    // console::log_1(&JsValue::from_str(&format!("{:?}", result)));
     result
 }
 
