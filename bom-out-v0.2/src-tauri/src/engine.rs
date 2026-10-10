@@ -287,8 +287,12 @@ pub fn excel_result_test(extract_path: &str, module_path: &str) -> Result<(),Str
             .map_err(|e| e.to_string())?;
         }
     }
-    for (r, (row1, row2)) in extract_preview.rows.iter().enumerate(){
-        let cell_extract = row1.get
+    for (r, (row1, row2)) in extract_preview.rows.iter().zip(module_preview.rows.iter()).enumerate(){
+        let cell_extract = row1.get(designator_col).cloned().unwrap_or_default();
+        let cell_module = row2.get(designator_col).cloned().unwrap_or_default();
+        let designator_extract = split_modules(&cell_extract);
+        let designator_module = split_modules(&cell_module);
+        
     }
 }
 
