@@ -166,7 +166,7 @@ async function getSheetNetlist(boardNamePrefix){
     });
     const designatorpinMap = {};
     const components = netlistData.components || {};
-    for (const key in components){
+    for (const key of components){
         const component = components[key];
         const props = component.props || {};
         const name = props?.Name || '';
@@ -175,7 +175,7 @@ async function getSheetNetlist(boardNamePrefix){
         if (!name || name === "NC") continue;
         const pinInfoMap = component.pinInfoMap || {};
         const pinMap = {};
-        for (const pinKey in pinInfoMap){
+        for (const pinKey of pinInfoMap){
             const pinData = pinInfoMap[pinKey];
             const pinNumber = pinData?.number || pinKey || '';
             const net = pinData?.net || '';
@@ -274,13 +274,161 @@ async function getPortModule(Port, designatorpinMap, Netlist, NetFlags){
     if (U_designator == null){
         return result;
     }
-    const
+    const U_designatorpinMap = designatorpinMap[U_designator];
+    const pinNumbers = Object.keys(U_designatorpinMap);
+    for (const pinNumber of pinNumbers){
+        const netName = U_designatorpinMap[pinNumber];
+        if (NetFlags.includes(NetName)){
+            continue;
+        }
+        const pins = Netlist[netName] || [];
+        for (const pinData of pins){
+            const d = pinData?.designator || '';
+            if (d.startWith('U') && !(d === U_designator)){
+                continue;
+            }
+            if (d && !seenDesignators.has(d)){
+                result.push(d);
+                seenDesignators.add(d);
+            }
+        }
+    }
+    return result;
+}
+
+async function BFS(result, designatorpinMap, NetFlags, Netlist){
+    let queue = Array.isArray(result) ? result : [];
+    let satisfied = [];
+    const seenSatisfied = new Set();
+    let item = queue.shift();
+    while (item && !item.startWith('U')){
+        queue.push(item);
+        item = queue.shift();
+    }
+    const U_chip = item;
+    if (item && !seenSatisfied.has(item)){
+        satisfied.push(item);
+        seenSatisfied.add(item);
+    }
+    while (queue.length > 0){
+        item = queue.shift();
+        const pin_net = designatorpinMap[item];
+        for (const pin of Object.keys(pin_net)){
+            const net = pin_net[pin];
+            if (NetFlags.includes(net)){
+                continue;
+            }
+            const designators = Netlist[net];
+            let netPassed = true;
+            if (!Array.isArray(designators)){
+                continue;
+            }
+            for (const designator_data of designators){
+                const new_des = designator_data.designator;
+                if (!(new_des === U_chip) && new_des.startWith('U')){
+                    continue;
+                }
+                if (satisfied.includes(new_des)){
+                    continue;
+                }
+                else{
+                    queue.push(new_des);
+                    if (item && !seenSatisfied.has(item)){
+                        satisfied.push(item);
+                        seenSatisfied.add(item);
+                    }
+                    netPassed = false;
+                }
+            }
+        }
+    }
+    return satisfied;
+}
+//这边下面好像可以不用把getSheetNetlist, getPortModule这两个函数当做参数传入
+async function connectorPortUse(blockPortBlock, getSheetNetlist, getPortModule){
+    const sheetMap_total = {};
+    const boardNamePrefix = Object.keys(blockPortBlock);
+    for (const boardNamePrefix_order of boardNamePrefix){
+        const {designatorpinMap, Netlist, NetFlags} = await getSheetNetlist(boardNamePrefix_order);
+        const Ports = blockPortBlock[boardNamePrefix_order];
+        for (const Port of Ports){
+            const result = await getPortModule(Port, designatorpinMap, Netlist, NetFlags);
+            const sheetMap = await BFS(result, designatorpinMap, NetFlags, Netlist);
+            // Merge objects
+            if (sheetMap_total[Port]){
+                sheetMap_total[Port].push(...sheetMap);
+            } else {
+                sheetMap_total[Port] = sheetMap;
+            }
+        }
+    }
+    return sheetMap_total;
+}
+
+async function getConnectorModule(ConnectorMap, SheetMap_total){
+    const ConnectorModule_total = {};
+    const ConnectorNames = Object.keys(ConnectorMap);
+    const pinMap = 'pinMap';
+    for (const ConnectorName of ConnectorNames){
+        const pinmap = ConnectorMap[ConnectorName][pinMap];
+        const pinNumbers = Object.keys(pinmap);
+        for (const pinNumber of pinNumbers){
+            const Net = pinmap[pinNumber];
+            const ConnectorRename = ConnectorName.slice(1) + pinNumber;
+            ConnnectorModule_total[ConnectorRename] = sheetMap_total[Net];
+        }
+    }
+    return ConnectorModule_total;
 }
 
 
+// 调用函数
+// 读取并解析JSON文件
+const boardNameResponse = await fetch('http://localhost:49620/read-file?path=d:/output/board_name.json');
+const boardNameData = await boardNameResponse.json();
+const boardName = JSON.parse(boardNameData.content).board_name; // "gp4.0f"
+const boardNamePrefix = boardName + '-连接器'；
+const connectorPinNetworkMap = await getConnectorPinNetworkMap(boardNamePrefix);
+
+const boardNamePrefix_block = boardName + '-block';
+const blockPin = await getBlockPinMap(boardNamePrefix_block);
+const blockConnector = await getBlockConnectorMap(blockPin, boardNamePrefix);
+const blockPortBlock = await getBlockPortBlockMap(blockConnector, boardNamePrefix);
 
 
+const boardNamePrefix_Hbridge = boardName + '-低边驱动';
+const {designatorpinMap, Netlist, NetFlags} = await getSheetNetlist(boardNamePrefix_Hbridge);
+const Port = "P-LSO14";
+const result_1 await getPortModule(Port, designatorpinMap, Netlist, NetFlags);
+const sheetMap = await BFS(result_1, designatorpinMap, NetFlags, Netlist);
+cosnt sheetMap_total = await connectorPotUse(blockPortBlock, getSheetNetlist, getPortModule);
+const ConnectorModule_total = await getConnectorModule(connectorPinNetworkMap, sheetMap_total);
 
+//数据保存
+const jsonData = {
+    // connectorMap: connectorPinNetworkMap,
+    // blockPin: blockPin,
+    // blockConnector: blockConnector,
+    // blockPortBlock: blockPortBlock,
+    // designatorpinMap: designatorpinMap,
+    // Netlist: Netlist,
+    // NetFlags: NetFlags,
+    // sheetMap: sheetMap,
+    // sheetMap_total: sheetMap_total,
+    // generatedAt: new Date().toISOString()
+    ConnectorModule_total:ConnectorModule_total
+    // boardname: boardName
+};
+const fileName = boardName + '.json';
+const jsonStr = JSON.stringify(jsonData, null, 2);
+const outputPath = './output/' + fileName;
+//const outputPath = '../output/' +fileName; 这样是bridge-server.mjs的父级目录 最后反正用./就行了
+const response = await fetch('http://localhost:49620/save-file',{
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({filePath: outputPath, Content: jsonStr})
+});
+const result = await response.json();
 
 
 
