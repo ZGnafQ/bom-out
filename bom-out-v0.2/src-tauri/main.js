@@ -430,21 +430,3 @@ const response = await fetch('http://localhost:49620/save-file',{
 });
 const result = await response.json();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-const boardName = 'gp4.0f';
-const boardNamePrefix  = boardName + '-block';
