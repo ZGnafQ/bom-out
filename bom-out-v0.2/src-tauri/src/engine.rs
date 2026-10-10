@@ -156,7 +156,84 @@ pub fn parse_json_module(json_path: &str) -> Result<HashMap<String, Vec<String>>
     Ok(json_root.connector_module_total)
 }
 pub fn process_excel(pin_path: &str, json_path: &str) -> Result<(), String>{
-    let output
+    let output_pin_path = build_pin_output_path(pin_path)?;
+    let pin_preview: XlsxPreview = read_xlsx_preview(pin_path)?;
+    let mut new_workbook = Workbook::new(output_pin_path);
+    let new_ws = new_workbook.add_worksheet();
+    let json_map = parse_json_module(json_path);
+    let map = json_map.unwrap();
+    let mut new_headers = pin_preview.headers.clone();
+    new_headers.push("元件位号".to_string());
+    // println!("new_headers: {:?}", new_headers); // 应显示末尾有"元件位号"
+    // let wrap_format = Format::new().set_text_wrap();
+
+    let header_format = Format::new()
+        .set_bold()
+        .set_font_size(10)
+        .set_align(XlsxAlign::Center)
+        .set_align(XlsxAlign::VerticalCenter)
+        .set_border(XlsxBorder::Thin)
+        .set_font_name("微软雅黑")
+        .set_background_color(XlsxColor::RGB(0x08B3F1))
+        // .set_background_color(XlsxColor::RGB(0x57CBE2))
+        .set_text_wrap();
+
+    let cell_format = Format::new()
+        // .set_bold()
+        .set_font_size(9)
+        .set_align(XlsxAlign::Center)
+        .set_align(XlsxAlign::VerticalCenter)
+        .set_border(XlsxBorder::Thin)
+        .set_font_name("微软雅黑")
+        .set_text_wrap();
+        // .set_background_color(XlsxColor::RGB(0x08B3F1))
+
+    let connector_col = pin_preview.headers
+        .iter()
+        .enumerate()
+        .filter(|_, h| h.contains("引脚号"))
+        .last()
+        .map(|idx, _| idx)
+        .unwrap_or(0);
+    new_ws.set_row_height(0, 70)
+        .map_err(|e| e.to_string())?;   // 第一行设为 70 字符单位
+    for (col, title) in new_headers.iter().enumerate(){
+        new_ws.write_string(0, col as u16, title, &header_format)
+            .map_err(|e| e.to_string())?;
+        new_ws.set_column_width(col as u16, 7.5)
+            .map_err(|e| e.to_string())?;
+    }
+    new_ws.set_column_width(6, 12)
+            .map_err(|e| e.to_string())?;
+    new_ws.set_column_width(7, 22)
+            .map_err(|e| e.to_string())?;
+    new_ws.set_column_width(8, 12)
+            .map_err(|e| e.to_string())?;
+    new_ws.set_column_width(9, 10)
+            .map_err(|e| e.to_string())?;
+    let last_column: usize = new_headers.clone().len() - 1;
+    new_ws.set_column_width(last_column as u16, 9)
+            .map_err(|e| e.to_string())?;
+    for (r, row) in pin_preview.rows.iter().enumerate(){
+        for (c, v) in row.iter().enumerate(){
+            new_ws.write_string((r+1) as u32, c as u16, v, &cell_format)
+            .map_err(|e| e.to_string())?;
+        }
+    }
+    for (r, row) in pin_preview.rows.iter().enumerate(){
+        let new_col = pin_preview.headers.len() as u16;
+        let connector = row.get(connector_col).cloned().unwrap_or_default();
+        let array = map.get(&connector).cloned().unwrap_or_default();
+        let new_val = array.join(",");
+        new_ws.write_string((r+1) as u32, new_col, &new_val, &cell_format)
+            .map_err(|e| e.to_string())?;
+        new_ws.set_row_height((r+1) as u32, 30)
+            .map_err(|e| e.to_string())?;
+    }
+    new_workbook
+        .close()
+        .map_err(|e| format!("保存输出文件失败: {e}"))?;
+    OK(())
 }
 
 
