@@ -1,9 +1,10 @@
-use calamine::{open_workbook, Data, Reader, Xlsx};
+use calamine::{Data, Reader, Xlsx, open_workbook};
 use rust_xlsxwriter::{Format, Workbook, XlsxAlign, XlsxBorder, XlsxColor};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
+//use serde_json::Value;
 use std::path::{Path, PathBuf};
-
+use std::string::String;
 /// Preview of an xlsx file: the first sheet rendered as strings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XlsxPreview {
@@ -67,6 +68,36 @@ fn split_modules(cell: &str) -> Vec<String> {
         .collect()
 }
 
+/// Extract board name from file path
+pub fn extract_board_name(file_path: &str) -> String {
+    let file_name = std::path::Path::new(file_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("unknown");
+
+    // 从文件名中提取板子名称
+    // 例如："GP4.0F-引脚定义.xlsx" -> "gp4.0f"
+    let base_name = file_name
+        .split("引脚定义.xlsx")
+        .next()
+        .unwrap_or(file_name);
+    
+    // 转换小写并去除空格
+    let board_name = base_name
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '.' /*|| *c == '-'*/)
+        .collect::<String>()
+        .to_lowercase();
+
+    // 清理: 只保留字母、数字、点和连字符
+    let cleaned: String = board_name
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '.' /*|| *c == '-'*/)
+        .collect();
+
+    cleaned.trim().to_string()
+}
+
 /// Read the first worksheet of an xlsx file as strings.
 pub fn read_xlsx_preview(path: &str) -> Result<XlsxPreview, String> {
     let mut workbook: Xlsx<_> =
@@ -80,6 +111,30 @@ pub fn read_xlsx_preview(path: &str) -> Result<XlsxPreview, String> {
         None => return Err("工作表为空".into()),
     };
     let rows: Vec<Vec<String>> = it.map(|row| row.iter().map(data_to_string).collect()).collect();
+    let file_name_only = path.split('\\').last().unwrap_or(path);
+    // 仅当文件名包含 "引脚定义" 时才保存 board_name.json
+    if file_name_only.contains("引脚定义"){
+        // 从文件路径中提取板子名称
+        let board_name = extract_board_name(path);
+
+        // 保存board_name 到 JSON 文件
+        // let output_dir = std::path::Path::new(&path)
+        //     .parent()
+        //     .unwrap_or_else(|| std::path::Path::new("."));
+        // let json_path = output_dir.join(format!("{}_board_name.json", board_name));
+        // let json_path = output_dir.join(format!("board_name.json"));
+        // 保存 board_name 到 JSON 文件
+        std::fs::create_dir_all("d:/output").ok();
+        let json_path = Path::new("d:/output").join("board_name.json");
+        let json_data = serde_json::json!({
+            "board_name": board_name
+        });
+        let _ = std::fs::write(
+            &json_path,
+            serde_json::to_string_pretty(&json_data).unwrap_or_else(|_| "{}".to_string())
+        );
+    }
+    
     Ok(XlsxPreview {
         sheet: name,
         headers,
@@ -87,6 +142,32 @@ pub fn read_xlsx_preview(path: &str) -> Result<XlsxPreview, String> {
     })
 }
 
+// json_map: 从 JSON 解析得到的HashMap<键, Vec<String>>
+// pub json_map: String,
+#[derive(Debug, Deserialize)]
+pub struct JsonRoot{
+    #[serde(rename = "ConnectorModule_total")]
+    connector_module_total: HashMap<String, Vec<String>>,
+}
+// "./output/gp4.0f.json"
+pub fn parse_json_module(json_path: &str) -> Result<HashMap<String, Vec<String>>, String>{
+    let json_str = std::fs::read_to_string(json_path).unwrap_or_default();
+    let json_root: JsonRoot = serde_json::from_str(&json_str).unwrap();
+    Ok(json_root.connector_module_total)
+}
+pub fn process_excel(pin_path: &str, json_path: &str) -> Result<(), String>{
+    let output
+}
+
+
+
+
+
+
+
+
+
+#[derive(Debug, Deserialize)]
 struct PinDef {
     #[allow(dead_code)]
     connector_col: usize,
