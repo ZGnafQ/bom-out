@@ -158,7 +158,7 @@ pub fn parse_json_module(json_path: &str) -> Result<HashMap<String, Vec<String>>
 pub fn process_excel(pin_path: &str, json_path: &str) -> Result<(), String>{
     let output_pin_path = build_pin_output_path(pin_path)?;
     let pin_preview: XlsxPreview = read_xlsx_preview(pin_path)?;
-    let mut new_workbook = Workbook::new(output_pin_path);
+    let mut new_workbook = Workbook::new(&output_pin_path);
     let new_ws = new_workbook.add_worksheet();
     let json_map = parse_json_module(json_path);
     let map = json_map.unwrap();
@@ -235,6 +235,63 @@ pub fn process_excel(pin_path: &str, json_path: &str) -> Result<(), String>{
         .map_err(|e| format!("保存输出文件失败: {e}"))?;
     OK(())
 }
+
+pub fn excel_result_test(extract_path: &str, module_path: &str) -> Result<(),String>{
+    let output_result_path = build_output_path_you_want(extract_path, "差异分析")?;
+    let extract_preview: XlsxPreview = read_xlsx_preview(extract_path)?;
+    let module_preview: XlsxPreview = read_xlsx_preview(module_path)?;
+    let mut new_workbook = Workbook::new(&output_result_path);
+    let new_ws = new_workbook.add_worksheet();
+    let mut new_headers = extract_preview.headers.clone();
+    new_headers.push("核验结果".to_string());
+    new_headers.push("相同位号".to_string());
+    new_headers.push("差异位号".to_string());
+
+    let header_format = Format::new()
+        .set_bold()
+        .set_font_size(10)
+        .set_align(XlsxAlign::Center)
+        .set_align(XlsxAlign::VerticalCenter)
+        .set_border(XlsxBorder::Thin)
+        .set_font_name("微软雅黑")
+        .set_background_color(XlsxColor::RGB(0x08B3F1))
+        // .set_background_color(XlsxColor::RGB(0x57CBE2))
+        .set_text_wrap();
+
+    let cell_format = Format::new()
+        // .set_bold()
+        .set_font_size(9)
+        .set_align(XlsxAlign::Center)
+        .set_align(XlsxAlign::VerticalCenter)
+        .set_border(XlsxBorder::Thin)
+        .set_font_name("微软雅黑")
+        .set_text_wrap();
+    
+    let designator_col = extract_preview.headers
+        .iter()
+        .enumerate()
+        .filter(|_, h| h.contains("元件位号"))
+        .last()
+        .map(|idx, _| idx)
+        .unwrap_or(0);
+
+    for (col, title) in new_headers.iter().enumerate(){
+        new_ws.write_string(0, col as u16, title, &header_format)
+            .map_err(|e| e.to_string())?;
+        new_ws.set_column_width(col as u16, 7.5)
+            .map_err(|e| e.to_string())?;
+    }
+    for (r, row) in extract_preview.rows.iter().enumerate(){
+        for (c, v) in row.iter().enumerate(){
+            new_ws.write_string((r+1) as u32, c as u16, v, &cell_format)
+            .map_err(|e| e.to_string())?;
+        }
+    }
+    for (r, (row1, row2)) in extract_preview.rows.iter().enumerate(){
+        let cell_extract = row1.get
+    }
+}
+
 
 
 
