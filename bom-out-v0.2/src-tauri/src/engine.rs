@@ -292,6 +292,32 @@ pub fn excel_result_test(extract_path: &str, module_path: &str) -> Result<(),Str
         let cell_module = row2.get(designator_col).cloned().unwrap_or_default();
         let designator_extract = split_modules(&cell_extract);
         let designator_module = split_modules(&cell_module);
+        if designator_extract.is_empty(){
+            continue;
+        }
+        let mut designator_kept = Vec::new();
+        let mut designator_diff = Vec::new();
+        // let mut kept_rows = Vec::new();
+
+        for designator in &designator_extract{
+            if designator_module.contains(designator){
+                designator_kept.push(designator.to_owned().clone());
+            }
+            else {
+                designator_diff.push(designator.to_owned().clone());
+            }
+        }
+        for designators in designator_module{
+            if designator_kept.contains(&designators){
+                continue;
+            }
+            if !designator_extract.contains(&designators){
+                designator_diff.push(designators.clone());
+            }  
+        }
+        let new_col = extract_preview.headers.len() as u16;
+        let same_val = designator_kept.join(",");
+        let diff_val = designator_diff.join(",");
         
     }
 }
