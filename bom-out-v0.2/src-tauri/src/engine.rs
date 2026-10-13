@@ -318,25 +318,31 @@ pub fn excel_result_test(extract_path: &str, module_path: &str) -> Result<(),Str
         let new_col = extract_preview.headers.len() as u16;
         let same_val = designator_kept.join(",");
         let diff_val = designator_diff.join(",");
-        
+        let check_val = if designator_diff.is_empty(){
+            "核验通过"
+        }
+        else{
+            "核验不通过"
+        };
+        new_ws.write_string((r+1) as u32, new_col, check_val, &cell_format)
+            .map_err(|e| e.to_string())?;
+        new_ws.write_string((r+1) as u32, (new_col+1) as u16, &same_val, &cell_format)
+            .map_err(|e| e.to_string())?;
+        new_ws.write_string((r+1) as u32, (new_col+2) as u16, &diff_val, &cell_format)
+            .map_err(|e| e.to_string())?;
+        new_ws.set_row_height((r+1) as u32, 30)
+            .map_err(|e| e.to_string())?;
     }
+    new_workbook
+        .close()
+        .map_err(|e| format!("保存输出文件失败: {e}"))?;
+    OK(())
 }
-
-
-
-
-
-
-
-
-
 
 #[derive(Debug, Deserialize)]
 struct PinDef {
     #[allow(dead_code)]
     connector_col: usize,
-    #[allow(dead_code)]
-    signal_col: Option<usize>,
     #[allow(dead_code)]
     module_col: usize,
     model_cols: Vec<(usize, String)>,
@@ -345,7 +351,20 @@ struct PinDef {
 }
 
 fn parse_pin_definition(headers: &[String], rows: &[Vec<String>]) -> PinDef {
-    let connector_col = 0usize;
+    let connector_col = headers
+        .iter()
+        .enumerate()
+        .filter(|(_, h)| h.contains("引脚号"))
+        .last()
+        .map(|(idx, _)| idx)
+        .unwrap_or(0);
+
+    // Find model columns (columns containing "型")
+
+
+
+
+    
     let module_col = headers
         .iter()
         .position(|h| h.contains("所属") || h.contains("模块"))
