@@ -421,10 +421,18 @@ pub fn extract_selected_bom(pin_path: &str, bom_path: &str) -> Result<ExtractRes
         .unwrap_or_else(|| PathBuf::from("."));
     let stem = p
         .file_stem()
-        .map(||)
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "bom".into());
+
+    let pin_des = parent.join(format!("{stem}_元件位号.xlsx"));
+    let pin_des_path = pin_des.to_str().unwrap();
+    let module_des = parent.join(format!("{stem}_模版位号.xlsx"));
+    let module_des_path = module_des.to_str().unwrap();
     let pin_preview = read_xlsx_preview(pin_path)?;
     let bom_preview = read_xlsx_preview(bom_path)?;
 
+    excel_result_test(pin_des_path, module_des_path)?;
+    
     if pin_preview.headers.is_empty() || bom_preview.headers.is_empty() {
         return Err("引脚定义或完整BOM文件为空".into());
     }
@@ -444,6 +452,10 @@ pub fn extract_selected_bom(pin_path: &str, bom_path: &str) -> Result<ExtractRes
     // Per model: the set of designators used by that model, plus the union of all
     // designators mentioned anywhere in the pin definition.
     let mut used_per_model: Vec<HashSet<String>> = vec![HashSet::new(); pin.model_cols.len()];
+
+
+
+    
     let mut mentioned: HashSet<String> = HashSet::new();
     for (_, modules, flags) in &pin.entries {
         for m in modules {
