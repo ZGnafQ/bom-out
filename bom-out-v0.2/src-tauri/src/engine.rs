@@ -150,12 +150,12 @@ pub struct JsonRoot{
     connector_module_total: HashMap<String, Vec<String>>,
 }
 // "./output/gp4.0f.json"
-pub fn parse_json_module(json_path: &str) -> Result<HashMap<String, Vec<String>>, String>{
+pub fn parse_json_module(json_path: &str) -> Result<HashMap<String, Vec<String>>, String> {
     let json_str = std::fs::read_to_string(json_path).unwrap_or_default();
     let json_root: JsonRoot = serde_json::from_str(&json_str).unwrap();
     Ok(json_root.connector_module_total)
 }
-pub fn process_excel(pin_path: &str, json_path: &str) -> Result<(), String>{
+pub fn process_excel(pin_path: &str, json_path: &str) -> Result<(), String> {
     let output_pin_path = build_pin_output_path(pin_path)?;
     let pin_preview: XlsxPreview = read_xlsx_preview(pin_path)?;
     let mut new_workbook = Workbook::new(&output_pin_path);
@@ -197,7 +197,7 @@ pub fn process_excel(pin_path: &str, json_path: &str) -> Result<(), String>{
         .unwrap_or(0);
     new_ws.set_row_height(0, 70)
         .map_err(|e| e.to_string())?;   // 第一行设为 70 字符单位
-    for (col, title) in new_headers.iter().enumerate(){
+    for (col, title) in new_headers.iter().enumerate() {
         new_ws.write_string(0, col as u16, title, &header_format)
             .map_err(|e| e.to_string())?;
         new_ws.set_column_width(col as u16, 7.5)
@@ -214,13 +214,13 @@ pub fn process_excel(pin_path: &str, json_path: &str) -> Result<(), String>{
     let last_column: usize = new_headers.clone().len() - 1;
     new_ws.set_column_width(last_column as u16, 9)
             .map_err(|e| e.to_string())?;
-    for (r, row) in pin_preview.rows.iter().enumerate(){
+    for (r, row) in pin_preview.rows.iter().enumerate() {
         for (c, v) in row.iter().enumerate(){
             new_ws.write_string((r+1) as u32, c as u16, v, &cell_format)
             .map_err(|e| e.to_string())?;
         }
     }
-    for (r, row) in pin_preview.rows.iter().enumerate(){
+    for (r, row) in pin_preview.rows.iter().enumerate() {
         let new_col = pin_preview.headers.len() as u16;
         let connector = row.get(connector_col).cloned().unwrap_or_default();
         let array = map.get(&connector).cloned().unwrap_or_default();
@@ -236,7 +236,7 @@ pub fn process_excel(pin_path: &str, json_path: &str) -> Result<(), String>{
     OK(())
 }
 
-pub fn excel_result_test(extract_path: &str, module_path: &str) -> Result<(),String>{
+pub fn excel_result_test(extract_path: &str, module_path: &str) -> Result<(),String> {
     let output_result_path = build_output_path_you_want(extract_path, "差异分析")?;
     let extract_preview: XlsxPreview = read_xlsx_preview(extract_path)?;
     let module_preview: XlsxPreview = read_xlsx_preview(module_path)?;
@@ -275,53 +275,53 @@ pub fn excel_result_test(extract_path: &str, module_path: &str) -> Result<(),Str
         .map(|idx, _| idx)
         .unwrap_or(0);
 
-    for (col, title) in new_headers.iter().enumerate(){
+    for (col, title) in new_headers.iter().enumerate() {
         new_ws.write_string(0, col as u16, title, &header_format)
             .map_err(|e| e.to_string())?;
         new_ws.set_column_width(col as u16, 7.5)
             .map_err(|e| e.to_string())?;
     }
-    for (r, row) in extract_preview.rows.iter().enumerate(){
-        for (c, v) in row.iter().enumerate(){
+    for (r, row) in extract_preview.rows.iter().enumerate() {
+        for (c, v) in row.iter().enumerate() {
             new_ws.write_string((r+1) as u32, c as u16, v, &cell_format)
             .map_err(|e| e.to_string())?;
         }
     }
-    for (r, (row1, row2)) in extract_preview.rows.iter().zip(module_preview.rows.iter()).enumerate(){
+    for (r, (row1, row2)) in extract_preview.rows.iter().zip(module_preview.rows.iter()).enumerate() {
         let cell_extract = row1.get(designator_col).cloned().unwrap_or_default();
         let cell_module = row2.get(designator_col).cloned().unwrap_or_default();
         let designator_extract = split_modules(&cell_extract);
         let designator_module = split_modules(&cell_module);
-        if designator_extract.is_empty(){
+        if designator_extract.is_empty() {
             continue;
         }
         let mut designator_kept = Vec::new();
         let mut designator_diff = Vec::new();
         // let mut kept_rows = Vec::new();
 
-        for designator in &designator_extract{
-            if designator_module.contains(designator){
+        for designator in &designator_extract {
+            if designator_module.contains(designator) {
                 designator_kept.push(designator.to_owned().clone());
             }
             else {
                 designator_diff.push(designator.to_owned().clone());
             }
         }
-        for designators in designator_module{
-            if designator_kept.contains(&designators){
+        for designators in designator_module {
+            if designator_kept.contains(&designators) {
                 continue;
             }
-            if !designator_extract.contains(&designators){
+            if !designator_extract.contains(&designators) {
                 designator_diff.push(designators.clone());
             }  
         }
         let new_col = extract_preview.headers.len() as u16;
         let same_val = designator_kept.join(",");
         let diff_val = designator_diff.join(",");
-        let check_val = if designator_diff.is_empty(){
+        let check_val = if designator_diff.is_empty() {
             "核验通过"
         }
-        else{
+        else {
             "核验不通过"
         };
         new_ws.write_string((r+1) as u32, new_col, check_val, &cell_format)
@@ -360,28 +360,18 @@ fn parse_pin_definition(headers: &[String], rows: &[Vec<String>]) -> PinDef {
         .unwrap_or(0);
 
     // Find model columns (columns containing "型")
-
-
-
-
-    
-    let module_col = headers
-        .iter()
-        .position(|h| h.contains("所属") || h.contains("模块"))
-        .unwrap_or_else(|| headers.len().saturating_sub(1));
-    let signal_col = headers.iter().position(|h| h.contains("信号"));
-
     let mut model_cols = Vec::new();
     for (idx, h) in headers.iter().enumerate() {
-        if idx == connector_col || idx == module_col || Some(idx) == signal_col {
-            continue;
+        if h.contains("型") && !h.contains("类型") {
+            model_cols.push((idx, h.trim().to_string()));
         }
-        if h.trim().is_empty() {
-            continue;
-        }
-        model_cols.push((idx, h.trim().to_string()));
     }
 
+    let module_col = headers
+        .iter()
+        .position(|h| h.contains("元件") || h.contains("位号"))
+        .unwrap_or_else(|| headers.len().saturating_sub(1));
+    
     let mut entries = Vec::new();
     for row in rows {
         let connector = row.get(connector_col).cloned().unwrap_or_default();
@@ -399,10 +389,9 @@ fn parse_pin_definition(headers: &[String], rows: &[Vec<String>]) -> PinDef {
         }
         entries.push((connector, modules, flags));
     }
-
+    
     PinDef {
         connector_col,
-        signal_col,
         module_col,
         model_cols,
         entries,
@@ -422,6 +411,17 @@ fn parse_pin_definition(headers: &[String], rows: &[Vec<String>]) -> PinDef {
 /// designators used by the model; the 差异BOM keeps the removed designators and adds a
 /// 备注 column filled with "删除". Rows whose filtered 位号 would be empty are dropped.
 pub fn extract_selected_bom(pin_path: &str, bom_path: &str) -> Result<ExtractResult, String> {
+    let board_name = extract_board_name(&pin_path);
+    let json_path = format!("./output/{}.json", board_name);
+    process_excel(pin_path, &json_path)?;
+    let p = Path::new(pin_path);
+    let parent = p
+        .parent()
+        .map(|d| d.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let stem = p
+        .file_stem()
+        .map(||)
     let pin_preview = read_xlsx_preview(pin_path)?;
     let bom_preview = read_xlsx_preview(bom_path)?;
 
