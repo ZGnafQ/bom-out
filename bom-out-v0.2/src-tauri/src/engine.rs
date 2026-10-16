@@ -452,10 +452,6 @@ pub fn extract_selected_bom(pin_path: &str, bom_path: &str) -> Result<ExtractRes
     // Per model: the set of designators used by that model, plus the union of all
     // designators mentioned anywhere in the pin definition.
     let mut used_per_model: Vec<HashSet<String>> = vec![HashSet::new(); pin.model_cols.len()];
-
-
-
-    
     let mut mentioned: HashSet<String> = HashSet::new();
     for (_, modules, flags) in &pin.entries {
         for m in modules {
@@ -564,6 +560,34 @@ fn build_output_path(bom_path: &str) -> Result<String, String> {
     Ok(out.to_string_lossy().into_owned())
 }
 
+fn build_pin_output_path(pin_path: &str) -> Result<String, String> {
+    let p = Path::new(pin_path);
+    let parent = p
+        .parent()
+        .map(|d| d.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let stem = p
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "bom".into());
+    let out = parent.join(format!("{stem}_元件位号.xlsx"));
+    Ok(out.to_string_lossy().into_owned())
+}
+
+fn build_output_path_you_want(pin_path: &str, string: &str) -> Result<String, String> {
+    let p = Path::new(pin_path);
+    let parent = p
+        .parent()
+        .map(|d| d.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let stem = p
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "bom".into());
+    let out = parent.join(format!("{stem}_{string}.xlsx"));
+    Ok(out.to_string_lossy().into_owned())
+}
+
 fn safe_sheet_name(s: &str) -> String {
     let mut out: String = s.chars().take(31).collect();
     for bad in ['\\', '/', '*', '?', ':', '[', ']'] {
@@ -636,6 +660,7 @@ mod tests {
             .parent()
             .unwrap()
             .to_path_buf();
+        printlin!("{}", dir.to_string_lossy());
         let pin = dir.join("GP4.0F-引脚定义.xlsx");
         let bom = dir.join("GP4.0F-完整bom.xlsx");
         (dir, pin.to_string_lossy().into_owned(), bom.to_string_lossy().into_owned())
