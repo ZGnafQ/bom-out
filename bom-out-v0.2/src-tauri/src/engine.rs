@@ -156,7 +156,7 @@ pub fn parse_json_module(json_path: &str) -> Result<HashMap<String, Vec<String>>
     Ok(json_root.connector_module_total)
 }
 pub fn process_excel(pin_path: &str, json_path: &str) -> Result<(), String> {
-    let output_pin_path = build_pin_output_path(pin_path)?;
+    let output_pin_path = build_output_path_you_want(pin_path, "元件位号")?;
     let pin_preview: XlsxPreview = read_xlsx_preview(pin_path)?;
     let mut new_workbook = Workbook::new(&output_pin_path);
     let new_ws = new_workbook.add_worksheet();
@@ -557,20 +557,6 @@ fn build_output_path(bom_path: &str) -> Result<String, String> {
         out = parent.join(format!("{stem}_选贴bom_{counter}.xlsx"));
         counter += 1;
     }
-    Ok(out.to_string_lossy().into_owned())
-}
-
-fn build_pin_output_path(pin_path: &str) -> Result<String, String> {
-    let p = Path::new(pin_path);
-    let parent = p
-        .parent()
-        .map(|d| d.to_path_buf())
-        .unwrap_or_else(|| PathBuf::from("."));
-    let stem = p
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "bom".into());
-    let out = parent.join(format!("{stem}_元件位号.xlsx"));
     Ok(out.to_string_lossy().into_owned())
 }
 
